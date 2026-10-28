@@ -181,14 +181,22 @@
 
     // терминал на последней платформе + лестница к ней
     const term = platforms[platforms.length - 1];
-    const tx = term.x + Math.floor(term.w / 2);
-    g[term.y - 1][tx] = "T";
-    for (let y = term.y + 1; y < ROWS - 2; y++) g[y][tx] = "H";
+    let tx = term.x + Math.floor(term.w / 2);
+    if (tx <= term.x) tx = term.x + 1;
+    if (tx >= term.x + term.w) tx = term.x + term.w - 2;
+    g[term.y][tx] = ".";                                  // проход в платформе: иначе не вылезти
+    for (let y = term.y - 1; y < ROWS - 2; y++) g[y][tx] = "H";
+    g[term.y][tx] = ".";                                  // проход важнее ступеньки
+    let tcol = tx + 1;
+    if (tcol > term.x + term.w - 1) tcol = tx - 1;
+    if (tcol >= 0 && tcol < COLS) g[term.y - 1][tcol] = "T";
 
-    // пара промежуточных лестниц
+    // промежуточные лестницы: тоже с проходом в платформе
     for (let i = 0; i < platforms.length - 1; i++){
       const p = platforms[i];
-      const lx = p.x + p.w - 1;
+      let lx = p.x + p.w - 1;
+      if (lx <= p.x) lx = p.x + 1;
+      g[p.y][lx] = ".";
       for (let y = p.y + 1; y < ROWS - 2; y++) if (g[y][lx] === ".") g[y][lx] = "H";
     }
 
