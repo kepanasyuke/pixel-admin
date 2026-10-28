@@ -298,14 +298,20 @@
     else if (right){ p.vx = speed; p.face = 1; }
     else p.vx = 0;
 
-    if (onLadder && (up || down)){
-      p.vy = up ? -2.8 : 2.8;
-    } else if (jump && p.onGround){
+    const jumpPressed = jump && !p.jumpHeld;
+    p.jumpHeld = !!jump;
+    const wantJump = jumpPressed && (p.onGround || onLadder);
+
+    if (wantJump){
       p.vy = -9.8;
       p.onGround = false;
+      if (onLadder && !left && !right) p.x += p.face * 12;
+    } else if (onLadder){
+      p.vy = up ? -2.8 : (down ? 2.8 : 0);
     }
 
-    p.vy += 0.55;
+    if (!onLadder) p.vy += 0.55;
+    else if (!up && !down && !wantJump) p.vy = 0;
     if (p.vy > 14) p.vy = 14;
 
     // X
