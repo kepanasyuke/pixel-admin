@@ -172,7 +172,7 @@
     let x = 5 + Math.floor(r() * 3);
     while (x < COLS - 8){
       const w = 3 + Math.floor(r() * 4);
-      const y = 4 + Math.floor(r() * 7);
+      const y = 6 + Math.floor(r() * 5);
       for (let i = 0; i < w; i++) g[y][x + i] = "=";
       platforms.push({ x: x, y: y, w: w });
       x += w + 3 + Math.floor(r() * 3);
