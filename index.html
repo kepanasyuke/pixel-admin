@@ -40,8 +40,18 @@
   .hint{font-size:12px;color:var(--dim);margin-top:10px;min-height:18px}
   .err{color:var(--red)} .ok{color:var(--green)}
   .hidden{display:none!important}
-  .levels{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:6px}
-  .lvl{font-size:12px;padding:8px 10px;border-radius:7px;border:1px solid #2a3d63;color:var(--dim);
+  .win{width:min(520px,92vw);background:#0d1425;border:3px solid #3b5c96;border-radius:8px;
+    box-shadow:0 20px 60px rgba(0,0,0,.7);overflow:hidden}
+  .winbar{display:flex;align-items:center;justify-content:space-between;gap:10px;
+    padding:8px 12px;background:#1b2745;border-bottom:2px solid #3b5c96;
+    font-size:12px;color:var(--green);letter-spacing:.4px}
+  .winbar .dots{display:flex;gap:5px}
+  .winbar .dots i{width:9px;height:9px;border-radius:2px;background:#3b5c96;display:block}
+  .winbody{padding:18px 20px}
+  .winbody p{font-size:13px;color:var(--dim);margin:0 0 10px;line-height:1.6}
+  .winbody .cmd{color:var(--green);background:#0a1020;border:1px solid #24365e;border-radius:6px;
+    padding:10px 12px;font-size:13px}
+  .levels{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:6px}  .lvl{font-size:12px;padding:8px 10px;border-radius:7px;border:1px solid #2a3d63;color:var(--dim);
     display:flex;justify-content:space-between;gap:8px}
   .lvl.done{border-color:#2f6b4a;color:var(--green)}
   .lvl.current{border-color:var(--amber);color:var(--amber)}
@@ -91,6 +101,20 @@
     </div>
   </div>
 
+  <div class="overlay hidden" id="progScreen">
+    <div class="win">
+      <div class="winbar">
+        <span id="pTitle">Программа</span>
+        <span class="dots"><i></i><i></i><i></i></span>
+      </div>
+      <div class="winbody">
+        <p class="cmd" id="pCmd">&gt; …</p>
+        <p id="pNote">…</p>
+        <div class="row"><button class="primary" id="pNext">Дверь открыта — идти дальше</button></div>
+      </div>
+    </div>
+  </div>
+
   <div class="overlay hidden" id="winScreen">
     <div class="card">
       <h1>Зал поднят</h1>
@@ -116,43 +140,43 @@
     { program:"mRemoteNG", title:"Комната 1: подключения",
       question:"Нужно подключиться к серверу биллинга по SSH. Введи команду.",
       hint:"ssh <хост> — например: ssh srv-billing",
-      answers:["ssh srv-billing","sshsrv-billing","ssh srvbilling"] },
+      answers:["ssh srv-billing","ssh admin@srv-billing","ssh root@srv-billing","ssh srv-billing -p 22","ssh srv-billing 22"] },
     { program:"KeePassXC", title:"Комната 2: пароли",
       question:"В каком файле KeePassXC хранит все пароли? Введи расширение.",
       hint:"один зашифрованный файл — kdbx",
-      answers:["kdbx",".kdbx","club.kdbx"] },
+      answers:["kdbx",".kdbx","club.kdbx","файл kdbx","база kdbx"] },
     { program:"VS Code", title:"Комната 3: скрипты",
       question:"Запусти скрипт hello.ps1 из PowerShell. Введи команду.",
       hint:"powershell -File hello.ps1",
-      answers:["powershell -file hello.ps1","powershell hello.ps1","pwsh hello.ps1","hello.ps1"] },
+      answers:["powershell -file hello.ps1","powershell hello.ps1","pwsh hello.ps1","hello.ps1",".\\hello.ps1","powershell -executionpolicy bypass -file hello.ps1"] },
     { program:"draw.io", title:"Комната 4: схема",
       question:"В каком формате сохраняется исходник схемы draw.io?",
       hint:"это XML-файл с расширением программы",
-      answers:["drawio",".drawio","draw.io"] },
+      answers:["drawio",".drawio","draw.io","xml",".xml","drawio xml"] },
     { program:"Joplin", title:"Комната 5: база знаний",
       question:"В каком формате экспортируем заметки, чтобы читались где угодно?",
       hint:"markdown или md",
-      answers:["markdown","md",".md","маркдаун"] },
+      answers:["markdown","md",".md","маркдаун","markdown файл","мд"] },
     { program:"RustDesk", title:"Комната 6: удалённая помощь",
       question:"Что нужно назвать человеку, чтобы он подключился к твоей машине в RustDesk?",
       hint:"короткий номер в окне программы",
-      answers:["id","ид","идентификатор"] },
+      answers:["id","ид","идентификатор","id машины","номер id"] },
     { program:"Aspia", title:"Комната 7: инвентаризация",
       question:"Каким командлетом собрать список физических дисков с их здоровьем?",
       hint:"get-physicaldisk",
-      answers:["get-physicaldisk","get-physicaldisk | ft","get physicaldisk"] },
+      answers:["get-physicaldisk","get physicaldisk","get-physicaldisk | ft","get-physicaldisk -physicaldisk"] },
     { program:"PowerShell", title:"Комната 8: автоматизация",
       question:"Каким командлетом узнать свободное место на дисках?",
       hint:"get-psdrive или get-volume",
-      answers:["get-psdrive","get-volume","get-psdrive -psprovider filesystem"] },
+      answers:["get-psdrive","get-volume","get-psdrive -psprovider filesystem","get-psdrive -psprovider filesystem | ft","get-psdrive | ft"] },
     { program:"Открытие смены", title:"Комната 9: регламент",
       question:"Что проверяем самым первым, когда заходим в зал утром?",
       hint:"без этого остальное не имеет смысла",
-      answers:["питание","электричество","электрика","свет"] },
+      answers:["питание","электричество","электрика","свет","питание зала","проверить питание"] },
     { program:"Финал", title:"Комната 10: финал",
       question:"Какой технологией включают машину по сети из биллинга?",
       hint:"wake-on-lan, сокращённо wol",
-      answers:["wake-on-lan","wol","wake on lan"] }
+      answers:["wake-on-lan","wol","wake on lan","wakeonlan","wake on lan wol"] }
   ];
 
   // ---------- генерация уровней ----------
@@ -190,6 +214,11 @@
     let tcol = tx + 1;
     if (tcol > term.x + term.w - 1) tcol = tx - 1;
     if (tcol >= 0 && tcol < COLS) g[term.y - 1][tcol] = "T";
+
+    // системный блок рядом с терминалом: на него можно запрыгнуть
+    let scol = (tcol > tx) ? tcol + 1 : tcol - 1;
+    if (scol < term.x || scol > term.x + term.w - 1) scol = (tcol > tx) ? tcol - 1 : tcol + 1;
+    if (scol >= 1 && scol < COLS - 1 && g[term.y][scol] === "=") g[term.y - 1][scol] = "S";
 
     // промежуточные лестницы: тоже с проходом в платформе
     for (let i = 0; i < platforms.length - 1; i++){
@@ -253,7 +282,7 @@
   }
   function isSolid(c, r){
     const t = tileAt(c, r);
-    return t === "#" || t === "=";
+    return t === "#" || t === "=" || t === "S";
   }
   function isLadder(c, r){ return tileAt(c, r) === "H"; }
 
@@ -427,6 +456,13 @@
           g.fillStyle = "#0e1730"; g.fillRect(x + 13, y + 13, 6, 10);
         } else if (t === "T"){
           drawTerminal(x, y, state.solved);
+        } else if (t === "S"){
+          g.fillStyle = "#1b2744"; g.fillRect(x + 9, y + 3, 14, 29);
+          g.fillStyle = "#2c4270"; g.fillRect(x + 11, y + 6, 10, 22);
+          g.fillStyle = "#57e389"; g.fillRect(x + 13, y + 9, 3, 3);
+          g.fillStyle = "#ffcf6b"; g.fillRect(x + 13, y + 15, 3, 3);
+          g.fillStyle = "#0e1730"; g.fillRect(x + 13, y + 21, 6, 3);
+          g.fillStyle = "#1b2744"; g.fillRect(x + 11, y + 30, 10, 2);
         } else if (t === "F"){
           drawDoor(x, y, state.solved);
         }
@@ -579,24 +615,48 @@
   }
 
   function normalize(s){
-    return s.toLowerCase().replace(/ё/g,"е").replace(/\s+/g," ").trim();
+    return String(s).toLowerCase().replace(/ё/g,"е").replace(/\s+/g,"").replace(/[^a-zа-я0-9.\-|]/g,"");
   }
 
   function submitAnswer(){
-    const val = normalize(tInput.value);
-    if (!val) return;
-    const ok = state.level.answers.some(a => normalize(a) === val);
+    const typed = normalize(tInput.value);
+    if (!typed) return;
+    const ok = state.level.answers.some(function(a){
+      const n = normalize(a);
+      if (!n) return false;
+      if (n === typed) return true;
+      if (n.length >= 5 && typed.indexOf(n) !== -1) return true;
+      if (typed.length >= 5 && n.indexOf(typed) !== -1) return true;
+      return false;
+    });
     if (ok){
       state.solved = true;
-      tHint.textContent = "Верно. Дверь открыта.";
-      tHint.className = "hint ok";
-      setTimeout(()=>{ closeTerminal(); draw(); }, 550);
+      const typedRaw = tInput.value.trim();
+      closeTerminal();
+      setTimeout(function(){ showProgram(typedRaw); }, 140);
     } else {
       tHint.textContent = "Не то. Подсказка: " + state.level.hint;
       tHint.className = "hint err";
       tInput.select();
     }
   }
+
+  function showProgram(typed){
+    state.running = false;
+    document.getElementById("pTitle").textContent = state.level.program + " — запущено";
+    document.getElementById("pCmd").textContent = "> " + typed;
+    const note = state.level.hint;
+    document.getElementById("pNote").textContent = note.charAt(0).toUpperCase() + note.slice(1) + ". Дверь открыта.";
+    document.getElementById("progScreen").classList.remove("hidden");
+  }
+
+  document.getElementById("pNext").addEventListener("click", function(){
+    document.getElementById("progScreen").classList.add("hidden");
+    state.running = true;
+    state.last = 0;
+    draw();
+    requestAnimationFrame(loop);
+  });
 
   document.getElementById("tSubmit").addEventListener("click", submitAnswer);
   tInput.addEventListener("keydown", function(e){
