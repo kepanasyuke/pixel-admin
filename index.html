@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Пиксельный админ — квест по программам сисадмина</title>
+<style>
+  :root{
+    --bg:#0b1020; --panel:#141c33; --ink:#e8eefc; --dim:#8fa3c8;
+    --green:#57e389; --amber:#ffcf6b; --red:#ff6b6b; --blue:#6bb6ff;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);
+    font-family:ui-monospace,"Cascadia Mono",Consolas,monospace;overflow:hidden}
+  #wrap{position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center}
+  canvas{image-rendering:pixelated;background:#0e1730;border:3px solid #24365e;
+    border-radius:6px;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+  .hud{position:absolute;left:50%;top:14px;transform:translateX(-50%);
+    display:flex;gap:14px;align-items:center;font-size:13px;color:var(--dim);
+    background:rgba(10,16,32,.75);border:1px solid #24365e;border-radius:8px;padding:8px 14px}
+  .hud b{color:var(--ink)}
+  .hud .tag{color:var(--amber)}
+  .overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    background:rgba(6,10,22,.86);backdrop-filter:blur(3px);z-index:5}
+  .card{width:min(560px,92vw);background:var(--panel);border:2px solid #2c4270;border-radius:12px;
+    padding:26px 28px;box-shadow:0 24px 70px rgba(0,0,0,.6)}
+  .card h1{font-size:20px;margin:0 0 6px;letter-spacing:.3px}
+  .card h2{font-size:15px;margin:0 0 14px;color:var(--amber);font-weight:600}
+  .card p{font-size:13px;line-height:1.6;color:var(--dim);margin:0 0 12px}
+  .card code{color:var(--green);background:#0d1425;padding:1px 5px;border-radius:4px}
+  .row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap}
+  button{font-family:inherit;font-size:13px;padding:9px 16px;border-radius:8px;cursor:pointer;
+    border:1px solid #35507f;background:#1b2745;color:var(--ink)}
+  button:hover{background:#22335a}
+  button.primary{background:#2b6cb0;border-color:#3b82f6}
+  button.primary:hover{background:#3178c6}
+  input{flex:1;min-width:180px;font-family:inherit;font-size:14px;padding:10px 12px;border-radius:8px;
+    border:1px solid #35507f;background:#0d1425;color:var(--ink);outline:none}
+  input:focus{border-color:var(--blue)}
+  .hint{font-size:12px;color:var(--dim);margin-top:10px;min-height:18px}
+  .err{color:var(--red)} .ok{color:var(--green)}
+  .hidden{display:none!important}
+  .levels{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:6px}
+  .lvl{font-size:12px;padding:8px 10px;border-radius:7px;border:1px solid #2a3d63;color:var(--dim);
+    display:flex;justify-content:space-between;gap:8px}
+  .lvl.done{border-color:#2f6b4a;color:var(--green)}
+  .lvl.current{border-color:var(--amber);color:var(--amber)}
+  .keys{font-size:12px;color:var(--dim);margin-top:12px;line-height:1.8}
+  kbd{background:#0d1425;border:1px solid #35507f;border-radius:4px;padding:1px 6px;font-size:11px}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="cv" width="960" height="480"></canvas>
+
+  <div class="hud">
+    <span>Уровень <b id="hLevel">1</b>/10</span>
+    <span class="tag" id="hProg">—</span>
+    <span>Диски <b id="hDisks">0</b></span>
+  </div>
+
+  <div class="overlay" id="startScreen">
+    <div class="card">
+      <h1>Пиксельный админ</h1>
+      <h2>квест по программам системного администратора</h2>
+      <p>Ты — техник компьютерного клуба. В каждом уровне стоит терминал с заданием по программе.
+         Подойди к нему, нажми <kbd>E</kbd> и введи правильную команду. После этого откроется дверь.</p>
+      <div class="keys">
+        <kbd>←</kbd> <kbd>→</kbd> или <kbd>A</kbd> <kbd>D</kbd> — идти &nbsp;
+        <kbd>Space</kbd> — прыжок &nbsp; <kbd>↑</kbd><kbd>↓</kbd> — лестница &nbsp; <kbd>E</kbd> — терминал
+      </div>
+      <div class="levels" id="levelList"></div>
+      <div class="row">
+        <button class="primary" id="btnStart">Начать</button>
+        <button id="btnReset">Сбросить прогресс</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="overlay hidden" id="terminalScreen">
+    <div class="card">
+      <h1 id="tTitle">Терминал</h1>
+      <h2 id="tProgram">—</h2>
+      <p id="tQuestion">—</p>
+      <div class="row">
+        <input id="tInput" autocomplete="off" spellcheck="false" placeholder="введи команду или ответ">
+        <button class="primary" id="tSubmit">Ввод</button>
+        <button id="tClose">Уйти</button>
+      </div>
+      <div class="hint" id="tHint"></div>
+    </div>
+  </div>
+
+  <div class="overlay hidden" id="winScreen">
+    <div class="card">
+      <h1>Зал поднят</h1>
+      <h2 id="winSub">все уровни пройдены</h2>
+      <p>Ты прошла все десять комнат: от менеджера подключений до открытия смены.
+         Дальше — задания в <code>D:\SysAdminLab\tasks</code> и настоящие программы на диске D.</p>
+      <div class="row"><button class="primary" id="btnAgain">Пройти заново</button></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  const TILE = 32, VIEW_W = 960, VIEW_H = 480;
+  const COLS = 42, ROWS = 15;
+  const cv = document.getElementById("cv");
+  const ctx = cv.getContext("2d");
+  ctx.imageSmoothingEnabled = false;
+
+  const LEVELS = [
+    { program:"mRemoteNG", title:"Комната 1: подключения",
+      question:"Нужно подключиться к серверу биллинга по SSH. Введи команду.",
+      hint:"ssh <хост> — например: ssh srv-billing",
+      answers:["ssh srv-billing","sshsrv-billing","ssh srvbilling"] },
+    { program:"KeePassXC", title:"Комната 2: пароли",
+      question:"В каком файле KeePassXC хранит все пароли? Введи расширение.",
+      hint:"один зашифрованный файл — kdbx",
+      answers:["kdbx",".kdbx","club.kdbx"] },
+    { program:"VS Code", title:"Комната 3: скрипты",
+      question:"Запусти скрипт hello.ps1 из PowerShell. Введи команду.",
+      hint:"powershell -File hello.ps1",
+      answers:["powershell -file hello.ps1","powershell hello.ps1","pwsh hello.ps1","hello.ps1"] },
+    { program:"draw.io", title:"Комната 4: схема",
+      question:"В каком формате сохраняется исходник схемы draw.io?",
+      hint:"это XML-файл с расширением программы",
+      answers:["drawio",".drawio","draw.io"] },
+    { program:"Joplin", title:"Комната 5: база знаний",
+      question:"В каком формате экспортируем заметки, чтобы читались где угодно?",
+      hint:"markdown или md",
+      answers:["markdown","md",".md","маркдаун"] },
+    { program:"RustDesk", title:"Комната 6: удалённая помощь",
+      question:"Что нужно назвать человеку, чтобы он подключился к твоей машине в RustDesk?",
+      hint:"короткий номер в окне программы",
+      answers:["id","ид","идентификатор"] },
+    { program:"Aspia", title:"Комната 7: инвентаризация",
+      question:"Каким командлетом собрать список физических дисков с их здоровьем?",
+      hint:"get-physicaldisk",
+      answers:["get-physicaldisk","get-physicaldisk | ft","get physicaldisk"] },
+    { program:"PowerShell", title:"Комната 8: автоматизация",
+      question:"Каким командлетом узнать свободное место на дисках?",
+      hint:"get-psdrive или get-volume",
+      answers:["get-psdrive","get-volume","get-psdrive -psprovider filesystem"] },
+    { program:"Открытие смены", title:"Комната 9: регламент",
+      question:"Что проверяем самым первым, когда заходим в зал утром?",
+      hint:"без этого остальное не имеет смысла",
+      answers:["питание","электричество","электрика","свет"] },
+    { program:"Финал", title:"Комната 10: финал",
+      question:"Какой технологией включают машину по сети из биллинга?",
+      hint:"wake-on-lan, сокращённо wol",
+      answers:["wake-on-lan","wol","wake on lan"] }
+  ];
+
+  // ---------- генерация уровней ----------
+  function rng(seed){
+    let s = seed * 7919 + 13;
+    return function(){ s = (s * 1103515245 + 12345) & 0x7fffffff; return s / 0x7fffffff; };
+  }
+
+  function buildLevel(index){
+    const r = rng(index + 1);
+    const g = [];
+    for (let y = 0; y < ROWS; y++) g.push(new Array(COLS).fill("."));
+
+    for (let x = 0; x < COLS; x++){ g[ROWS-1][x] = "#"; g[ROWS-2][x] = "#"; }
+
+    const platforms = [];
+    let x = 5 + Math.floor(r() * 3);
+    while (x < COLS - 8){
+      const w = 3 + Math.floor(r() * 4);
+      const y = 4 + Math.floor(r() * 7);
+      for (let i = 0; i < w; i++) g[y][x + i] = "=";
+      platforms.push({ x: x, y: y, w: w });
+      x += w + 3 + Math.floor(r() * 3);
+    }
+    if (!platforms.length) platforms.push({ x: 8, y: 7, w: 4 });
+
+    // терминал на последней платформе + лестница к ней
+    const term = platforms[platforms.length - 1];
+    const tx = term.x + Math.floor(term.w / 2);
+    g[term.y - 1][tx] = "T";
+    for (let y = term.y + 1; y < ROWS - 2; y++) g[y][tx] = "H";
+
+    // пара промежуточных лестниц
+    for (let i = 0; i < platforms.length - 1; i++){
+      const p = platforms[i];
+      const lx = p.x + p.w - 1;
+      for (let y = p.y + 1; y < ROWS - 2; y++) if (g[y][lx] === ".") g[y][lx] = "H";
+    }
+
+    // дверь справа на земле
+    const doorCol = COLS - 3;
+    g[ROWS-3][doorCol] = "F";
+
+    // жуки-баги
+    const bugCount = 1 + (index > 2 ? 1 : 0);
+    for (let i = 0; i < bugCount; i++){
+      const bx = 8 + Math.floor(r() * (COLS - 18));
+      if (g[ROWS-3][bx] === ".") g[ROWS-3][bx] = "E";
+    }
+
+    // диски на платформах
+    for (let i = 0; i < platforms.length; i++){
+      if (r() < 0.5) continue;
+      const p = platforms[i];
+      const dx = p.x + Math.floor(r() * p.w);
+      if (g[p.y - 1][dx] === ".") g[p.y - 1][dx] = "o";
+    }
+
+    return { grid: g, start: { x: 2 * TILE, y: (ROWS - 4) * TILE }, door: { col: doorCol, row: ROWS - 3 } };
+  }
+
+  // ---------- состояние ----------
+  const state = {
+    index: 0,
+    grid: null,
+    level: null,
+    player: { x: 0, y: 0, vx: 0, vy: 0, w: 20, h: 28, onGround: false, face: 1, step: 0 },
+    camX: 0,
+    solved: false,
+    disks: 0,
+    bugs: [],
+    running: false,
+    keys: {},
+    last: 0
+  };
+
+  const progressKey = "saq_progress_v1";
+  let progress = { unlocked: 0, done: [] };
+  try {
+    const raw = localStorage.getItem(progressKey);
+    if (raw) progress = JSON.parse(raw);
+  } catch(e){}
+  function saveProgress(){
+    try { localStorage.setItem(progressKey, JSON.stringify(progress)); } catch(e){}
+  }
+
+  function tileAt(c, r){
+    if (r < 0 || r >= ROWS || c < 0 || c >= COLS) return "#";
+    return state.grid[r][c];
+  }
+  function isSolid(c, r){
+    const t = tileAt(c, r);
+    return t === "#" || t === "=";
+  }
+  function isLadder(c, r){ return tileAt(c, r) === "H"; }
+
+  function loadLevel(i){
+    state.index = i;
+    state.level = LEVELS[i];
+    const built = buildLevel(i);
+    state.grid = built.grid;
+    state.levelData = built;
+    state.solved = false;
+    state.disks = 0;
+    const s = state.player;
+    s.x = built.start.x; s.y = built.start.y; s.vx = 0; s.vy = 0; s.onGround = false;
+    state.camX = 0;
+    state.bugs = [];
+    for (let r = 0; r < ROWS; r++)
+      for (let c = 0; c < COLS; c++)
+        if (state.grid[r][c] === "E") state.bugs.push({ x: c * TILE, y: r * TILE, dir: 1, min: c * TILE - 60, max: c * TILE + 60 });
+    document.getElementById("hLevel").textContent = String(i + 1);
+    document.getElementById("hProg").textContent = state.level.program;
+    document.getElementById("hDisks").textContent = "0";
+  }
+
+  // ---------- физика ----------
+  function rectVsTiles(px, py, w, h){
+    const c1 = Math.floor(px / TILE), c2 = Math.floor((px + w - 1) / TILE);
+    const r1 = Math.floor(py / TILE), r2 = Math.floor((py + h - 1) / TILE);
+    for (let r = r1; r <= r2; r++)
+      for (let c = c1; c <= c2; c++)
+        if (isSolid(c, r)) return { c: c, r: r };
+    return null;
+  }
+
+  function updatePlayer(dt){
+    const p = state.player;
+    const speed = 3.4;
+    const k = state.keys;
+    const left = k["ArrowLeft"] || k["a"] || k["A"] || k["ф"] || k["Ф"];
+    const right = k["ArrowRight"] || k["d"] || k["D"] || k["в"] || k["В"];
+    const jump = k[" "] || k["Space"];
+    const up = k["ArrowUp"] || k["w"] || k["W"] || k["ц"] || k["Ц"];
+    const down = k["ArrowDown"] || k["s"] || k["S"] || k["ы"] || k["Ы"];
+
+    const centerC = Math.floor((p.x + p.w / 2) / TILE);
+    const feetR = Math.floor((p.y + p.h) / TILE);
+    const bodyR = Math.floor((p.y + p.h / 2) / TILE);
+    const onLadder = isLadder(centerC, bodyR) || isLadder(centerC, feetR);
+
+    if (left){ p.vx = -speed; p.face = -1; }
+    else if (right){ p.vx = speed; p.face = 1; }
+    else p.vx = 0;
+
+    if (onLadder && (up || down)){
+      p.vy = up ? -2.8 : 2.8;
+    } else if (jump && p.onGround){
+      p.vy = -9.8;
+      p.onGround = false;
+    }
+
+    p.vy += 0.55;
+    if (p.vy > 14) p.vy = 14;
+
+    // X
+    p.x += p.vx;
+    let hit = rectVsTiles(p.x, p.y, p.w, p.h);
+    if (hit){
+      if (p.vx > 0) p.x = hit.c * TILE - p.w;
+      else if (p.vx < 0) p.x = (hit.c + 1) * TILE;
+      p.vx = 0;
+    }
+
+    // Y
+    p.y += p.vy;
+    hit = rectVsTiles(p.x, p.y, p.w, p.h);
+    if (hit){
+      if (p.vy > 0){ p.y = hit.r * TILE - p.h; p.onGround = true; p.vy = 0; }
+      else if (p.vy < 0){ p.y = (hit.r + 1) * TILE; p.vy = 0; }
+    } else {
+      p.onGround = false;
+    }
+
+    if (p.x < 0) p.x = 0;
+    if (p.x > COLS * TILE - p.w) p.x = COLS * TILE - p.w;
+    if (p.y > ROWS * TILE + 200){ p.x = state.levelData.start.x; p.y = state.levelData.start.y; p.vy = 0; }
+
+    if (p.vx !== 0) p.step += Math.abs(p.vx) * 0.12;
+
+    // жуки
+    for (const b of state.bugs){
+      b.x += b.dir * 1.1;
+      if (b.x < b.min){ b.x = b.min; b.dir = 1; }
+      if (b.x > b.max){ b.x = b.max; b.dir = -1; }
+      if (overlap(p.x, p.y, p.w, p.h, b.x, b.y + 4, 28, 24)){
+        p.x = state.levelData.start.x; p.y = state.levelData.start.y; p.vy = 0;
+        flash("Баг укусил. Возврат к началу комнаты.");
+      }
+    }
+
+    // сбор дисков
+    const cc = Math.floor((p.x + p.w / 2) / TILE), rr = Math.floor((p.y + p.h / 2) / TILE);
+    if (tileAt(cc, rr) === "o"){
+      state.grid[rr][cc] = ".";
+      state.disks++;
+      document.getElementById("hDisks").textContent = String(state.disks);
+    }
+
+    // открытие терминала
+    const nearTerminal = findNear(cc, rr, "T");
+    if (nearTerminal) state.nearTerminal = nearTerminal; else state.nearTerminal = null;
+
+    // дверь
+    const door = state.levelData.door;
+    if (overlap(p.x, p.y, p.w, p.h, door.col * TILE, door.row * TILE, TILE, TILE)){
+      if (state.solved) nextLevel();
+      else if (!state.doorHinted){ flash("Дверь закрыта: сначала реши задание на терминале."); state.doorHinted = true; setTimeout(()=>{ state.doorHinted = false; }, 2500); }
+    }
+
+    // камера
+    const target = p.x + p.w / 2 - VIEW_W / 2;
+    state.camX = Math.max(0, Math.min(COLS * TILE - VIEW_W, target));
+  }
+
+  function findNear(c, r, ch){
+    for (let dy = -1; dy <= 1; dy++)
+      for (let dx = -1; dx <= 1; dx++)
+        if (tileAt(c + dx, r + dy) === ch) return { c: c + dx, r: r + dy };
+    return null;
+  }
+
+  function overlap(ax, ay, aw, ah, bx, by, bw, bh){
+    return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
+  }
+
+  // ---------- отрисовка ----------
+  function draw(){
+    const g = ctx;
+    g.fillStyle = "#0e1730";
+    g.fillRect(0, 0, VIEW_W, VIEW_H);
+
+    // фон: сетка ламп
+    g.fillStyle = "#121d3a";
+    for (let i = 0; i < 12; i++) g.fillRect(((i * 97) - state.camX * 0.3) % VIEW_W, 40 + (i % 3) * 12, 6, 3);
+
+    const cam = state.camX;
+    const c0 = Math.max(0, Math.floor(cam / TILE) - 1);
+    const c1 = Math.min(COLS - 1, Math.ceil((cam + VIEW_W) / TILE) + 1);
+
+    for (let r = 0; r < ROWS; r++){
+      for (let c = c0; c <= c1; c++){
+        const t = state.grid[r][c];
+        const x = c * TILE - cam, y = r * TILE;
+        if (t === "#"){
+          g.fillStyle = "#26375e"; g.fillRect(x, y, TILE, TILE);
+          g.fillStyle = "#31456f"; g.fillRect(x, y, TILE, 5);
+          g.fillStyle = "#1b2744"; g.fillRect(x + 3, y + 12, 8, 6); g.fillRect(x + 17, y + 12, 8, 6);
+        } else if (t === "="){
+          g.fillStyle = "#3a4f7d"; g.fillRect(x, y, TILE, 8);
+          g.fillStyle = "#4d68a3"; g.fillRect(x, y, TILE, 3);
+        } else if (t === "H"){
+          g.fillStyle = "#8a6a3a"; g.fillRect(x + 6, y, 4, TILE); g.fillRect(x + 22, y, 4, TILE);
+          g.fillStyle = "#b08a4f"; g.fillRect(x + 6, y + 6, 20, 3); g.fillRect(x + 6, y + 20, 20, 3);
+        } else if (t === "o"){
+          g.fillStyle = "#1b2744"; g.fillRect(x + 6, y + 8, 20, 20);
+          g.fillStyle = "#57e389"; g.fillRect(x + 8, y + 10, 16, 16);
+          g.fillStyle = "#0e1730"; g.fillRect(x + 13, y + 13, 6, 10);
+        } else if (t === "T"){
+          drawTerminal(x, y, state.solved);
+        } else if (t === "F"){
+          drawDoor(x, y, state.solved);
+        }
+      }
+    }
+
+    for (const b of state.bugs) drawBug(b.x - cam, b.y);
+    drawPlayer();
+
+    if (state.nearTerminal && !state.solved && state.running){
+      g.fillStyle = "rgba(8,12,26,.9)";
+      g.fillRect(VIEW_W / 2 - 120, VIEW_H - 54, 240, 32);
+      g.fillStyle = "#ffcf6b";
+      g.font = "14px ui-monospace, monospace";
+      g.textAlign = "center";
+      g.fillText("E — открыть терминал", VIEW_W / 2, VIEW_H - 33);
+    }
+  }
+
+  function drawTerminal(x, y, solved){
+    const g = ctx;
+    g.fillStyle = "#1b2744"; g.fillRect(x + 4, y + 6, 24, 20);
+    g.fillStyle = solved ? "#57e389" : "#2f6b4a";
+    g.fillRect(x + 6, y + 8, 20, 12);
+    g.fillStyle = solved ? "#0e1730" : "#57e389";
+    if (solved){
+      g.fillRect(x + 12, y + 12, 3, 3); g.fillRect(x + 15, y + 15, 3, 3); g.fillRect(x + 18, y + 9, 3, 3);
+    } else {
+      g.fillRect(x + 10, y + 12, 12, 2);
+    }
+    g.fillStyle = "#3a4f7d"; g.fillRect(x + 12, y + 26, 8, 4);
+    g.fillRect(x + 8, y + 29, 16, 3);
+  }
+
+  function drawDoor(x, y, open){
+    const g = ctx;
+    g.fillStyle = open ? "#2f6b4a" : "#3a2b45";
+    g.fillRect(x + 4, y, 24, TILE);
+    g.fillStyle = open ? "#57e389" : "#7a5a86";
+    g.fillRect(x + 7, y + 4, 18, TILE - 4);
+    g.fillStyle = "#0e1730";
+    g.fillRect(x + 10, y + 8, 12, TILE - 10);
+    g.fillStyle = open ? "#57e389" : "#a07ab0";
+    g.fillRect(x + 23, y + 16, 3, 3);
+  }
+
+  function drawBug(x, y){
+    const g = ctx;
+    g.fillStyle = "#ff6b6b";
+    g.fillRect(x + 6, y + 12, 16, 12);
+    g.fillRect(x + 10, y + 8, 8, 6);
+    g.fillStyle = "#0e1730";
+    g.fillRect(x + 9, y + 14, 3, 3); g.fillRect(x + 16, y + 14, 3, 3);
+    g.fillStyle = "#ff6b6b";
+    const w = Math.sin(performance.now() / 90) * 2;
+    g.fillRect(x + 2, y + 16 + w, 4, 2); g.fillRect(x + 22, y + 16 - w, 4, 2);
+  }
+
+  function drawPlayer(){
+    const p = state.player;
+    const x = Math.round(p.x - state.camX), y = Math.round(p.y);
+    const g = ctx;
+    const bob = p.vx !== 0 ? (Math.floor(p.step) % 2 === 0 ? 1 : -1) : 0;
+
+    // ботинки
+    g.fillStyle = "#1b2744";
+    g.fillRect(x + 2, y + 24, 7, 4);
+    g.fillRect(x + 11, y + 24, 7, 4);
+    // тело — толстовка
+    g.fillStyle = "#2b6cb0";
+    g.fillRect(x + 3, y + 10 + bob, 14, 14);
+    g.fillStyle = "#3178c6";
+    g.fillRect(x + 3, y + 10 + bob, 14, 4);
+    // руки
+    g.fillStyle = "#2b6cb0";
+    g.fillRect(x + 0, y + 12 + bob, 4, 8);
+    g.fillRect(x + 16, y + 12 + bob, 4, 8);
+    // голова
+    g.fillStyle = "#f0c9a0";
+    g.fillRect(x + 4, y + 1 + bob, 12, 10);
+    // очки
+    g.fillStyle = "#0e1730";
+    g.fillRect(x + 5, y + 4 + bob, 10, 3);
+    g.fillStyle = "#57e389";
+    g.fillRect(x + (p.face > 0 ? 11 : 6), y + 4 + bob, 3, 3);
+    // наушники
+    g.fillStyle = "#ffcf6b";
+    g.fillRect(x + 2, y + 2 + bob, 3, 8);
+    g.fillRect(x + 15, y + 2 + bob, 3, 8);
+  }
+
+  // ---------- цикл ----------
+  function loop(ts){
+    if (!state.running) return;
+    const dt = Math.min(32, ts - state.last || 16);
+    state.last = ts;
+    updatePlayer(dt);
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  function start(){
+    document.getElementById("startScreen").classList.add("hidden");
+    const idx = Math.min(progress.unlocked, LEVELS.length - 1);
+    loadLevel(idx);
+    state.running = true;
+    state.last = 0;
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  function nextLevel(){
+    const i = state.index;
+    if (!progress.done.includes(i)) progress.done.push(i);
+    progress.unlocked = Math.max(progress.unlocked, i + 1);
+    saveProgress();
+    if (i + 1 >= LEVELS.length){
+      state.running = false;
+      document.getElementById("winSub").textContent = "уровней пройдено: " + LEVELS.length;
+      document.getElementById("winScreen").classList.remove("hidden");
+      return;
+    }
+    loadLevel(i + 1);
+    draw();
+  }
+
+  // ---------- терминал ----------
+  const termScreen = document.getElementById("terminalScreen");
+  const tInput = document.getElementById("tInput");
+  const tHint = document.getElementById("tHint");
+
+  function openTerminal(){
+    if (!state.nearTerminal || state.solved) return;
+    state.running = false;
+    document.getElementById("tTitle").textContent = state.level.title;
+    document.getElementById("tProgram").textContent = state.level.program;
+    document.getElementById("tQuestion").textContent = state.level.question;
+    tHint.textContent = "";
+    tHint.className = "hint";
+    tInput.value = "";
+    termScreen.classList.remove("hidden");
+    setTimeout(()=>tInput.focus(), 50);
+  }
+
+  function closeTerminal(){
+    termScreen.classList.add("hidden");
+    state.running = true;
+    state.last = 0;
+    requestAnimationFrame(loop);
+  }
+
+  function normalize(s){
+    return s.toLowerCase().replace(/ё/g,"е").replace(/\s+/g," ").trim();
+  }
+
+  function submitAnswer(){
+    const val = normalize(tInput.value);
+    if (!val) return;
+    const ok = state.level.answers.some(a => normalize(a) === val);
+    if (ok){
+      state.solved = true;
+      tHint.textContent = "Верно. Дверь открыта.";
+      tHint.className = "hint ok";
+      setTimeout(()=>{ closeTerminal(); draw(); }, 550);
+    } else {
+      tHint.textContent = "Не то. Подсказка: " + state.level.hint;
+      tHint.className = "hint err";
+      tInput.select();
+    }
+  }
+
+  document.getElementById("tSubmit").addEventListener("click", submitAnswer);
+  tInput.addEventListener("keydown", function(e){
+    if (e.key === "Enter") submitAnswer();
+    if (e.key === "Escape") closeTerminal();
+  });
+  document.getElementById("tClose").addEventListener("click", closeTerminal);
+
+  // ---------- клавиши ----------
+  window.addEventListener("keydown", function(e){
+    state.keys[e.key] = true;
+    if (e.key === " " || e.key === "ArrowUp" || e.key === "ArrowDown") e.preventDefault();
+    if ((e.key === "e" || e.key === "E" || e.key === "у" || e.key === "У") && state.running){
+      if (state.nearTerminal) openTerminal();
+    }
+  });
+  window.addEventListener("keyup", function(e){ state.keys[e.key] = false; });
+
+  // ---------- меню ----------
+  function renderLevelList(){
+    const box = document.getElementById("levelList");
+    box.innerHTML = "";
+    LEVELS.forEach(function(l, i){
+      const d = document.createElement("div");
+      d.className = "lvl" + (progress.done.includes(i) ? " done" : "") + (i === Math.min(progress.unlocked, LEVELS.length - 1) ? " current" : "");
+      d.innerHTML = "<span>" + (i + 1) + ". " + l.program + "</span><span>" + (progress.done.includes(i) ? "✓" : "—") + "</span>";
+      box.appendChild(d);
+    });
+  }
+
+  let flashTimer = null;
+  function flash(text){
+    let el = document.getElementById("flashMsg");
+    if (!el){
+      el = document.createElement("div");
+      el.id = "flashMsg";
+      el.style.cssText = "position:absolute;left:50%;bottom:70px;transform:translateX(-50%);" +
+        "background:rgba(10,16,32,.92);border:1px solid #35507f;color:#ffcf6b;" +
+        "padding:8px 14px;border-radius:8px;font-size:12px;z-index:4";
+      document.getElementById("wrap").appendChild(el);
+    }
+    el.textContent = text;
+    el.style.opacity = "1";
+    clearTimeout(flashTimer);
+    flashTimer = setTimeout(function(){ el.style.opacity = "0"; }, 1800);
+  }
+
+  document.getElementById("btnStart").addEventListener("click", start);
+  document.getElementById("btnReset").addEventListener("click", function(){
+    progress = { unlocked: 0, done: [] };
+    saveProgress();
+    renderLevelList();
+  });
+  document.getElementById("btnAgain").addEventListener("click", function(){
+    progress = { unlocked: 0, done: [] };
+    saveProgress();
+    document.getElementById("winScreen").classList.add("hidden");
+    state.running = false;
+    renderLevelList();
+    document.getElementById("startScreen").classList.remove("hidden");
+  });
+
+  renderLevelList();
+  loadLevel(0);
+  draw();
+})();
+</script>
+</body>
+</html>
