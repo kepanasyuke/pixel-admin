@@ -51,6 +51,12 @@
   .winbody p{font-size:13px;color:var(--dim);margin:0 0 10px;line-height:1.6}
   .winbody .cmd{color:var(--green);background:#0a1020;border:1px solid #24365e;border-radius:6px;
     padding:10px 12px;font-size:13px}
+  .opts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:6px 0 12px}
+  .opt{font-family:inherit;font-size:12px;text-align:left;padding:10px 12px;border-radius:6px;
+    border:1px solid #2c4270;background:#101a30;color:#cfe0ff;cursor:pointer}
+  .opt:hover{border-color:#3b82f6;background:#16233d}
+  .opt.correct{border-color:#2f6b4a;background:#122a1e;color:#57e389}
+  .opt.wrong{border-color:#7a2b3a;background:#2a1219;color:#ff8f8f}
   .levels{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:6px}  .lvl{font-size:12px;padding:8px 10px;border-radius:7px;border:1px solid #2a3d63;color:var(--dim);
     display:flex;justify-content:space-between;gap:8px}
   .lvl.done{border-color:#2f6b4a;color:var(--green)}
@@ -66,7 +72,8 @@
   <div class="hud">
     <span>Уровень <b id="hLevel">1</b>/10</span>
     <span class="tag" id="hProg">—</span>
-    <span>Диски <b id="hDisks">0</b></span>
+    <span>Деньги <b id="hMoney">0</b>$</span>
+    <span>Яйца <b id="hEggs">0</b></span>
   </div>
 
   <div class="overlay" id="startScreen">
@@ -109,8 +116,10 @@
       </div>
       <div class="winbody">
         <p class="cmd" id="pCmd">&gt; …</p>
+        <p id="pAsk">…</p>
+        <div class="opts" id="pOptions"></div>
         <p id="pNote">…</p>
-        <div class="row"><button class="primary" id="pNext">Дверь открыта — идти дальше</button></div>
+        <div class="row"><button class="primary" id="pNext" disabled>Дверь открыта — идти дальше</button></div>
       </div>
     </div>
   </div>
@@ -178,6 +187,21 @@
       hint:"wake-on-lan, сокращённо wol",
       answers:["wake-on-lan","wol","wake on lan","wakeonlan","wake on lan wol"] }
   ];
+
+  // мини-задание внутри «программы»: что выбрать в интерфейсе
+  const APPS = [
+    { prompt:"В дереве подключений выбери сервер биллинга:", options:["PC-01 (RDP)","srv-billing (SSH)","srv-cctv (VNC)","printer (RDP)"], correct:1 },
+    { prompt:"Открой запись с паролем от биллинга:", options:["PC-01","Биллинг","Коммутатор","PC-02"], correct:1 },
+    { prompt:"Какой файл запускаем первым?", options:["index.html","hello.ps1","readme.md","settings.json"], correct:1 },
+    { prompt:"Что соединяем линией в первую очередь?", options:["PC-01 — монитор","Роутер — коммутатор","ИБП — кресло","Стол — стул"], correct:1 },
+    { prompt:"В какой блокнот кладём регламент открытия?", options:["Регламенты","Инциденты","Полезное","Корзина"], correct:0 },
+    { prompt:"Что вводим, чтобы подключиться к машине?", options:["Пароль от Wi-Fi","ID машины","IP принтера","Серийный номер"], correct:1 },
+    { prompt:"Что попадёт в отчёт аудита?", options:["Модель диска","Цвет корпуса","Имя гостя","Цена часа"], correct:0 },
+    { prompt:"Какой командлет покажет свободное место?", options:["Get-Date","Get-PSDrive","Start-Process","Remove-Item"], correct:1 },
+    { prompt:"С чего начинаем открытие смены?", options:["Проверить питание","Включить музыку","Открыть кассу","Позвонить провайдеру"], correct:0 },
+    { prompt:"Какой пакет разбудит машину по сети?", options:["ping","wake-on-lan","tracert","netstat"], correct:1 }
+  ];
+  LEVELS.forEach(function(l, i){ l.app = APPS[i]; });
 
   // ---------- генерация уровней ----------
   function rng(seed){
@@ -248,6 +272,17 @@
       if (g[p.y - 1][dx] === ".") g[p.y - 1][dx] = "o";
     }
 
+    // яйцо-щит на первой платформе
+    const pe = platforms[0];
+    const gx = pe.x + Math.floor(pe.w / 2);
+    if (g[pe.y - 1][gx] === ".") g[pe.y - 1][gx] = "g";
+
+    // баг, который стреляет лучом, — у подножия лестницы к терминалу
+    if (index >= 1){
+      const lx = Math.max(2, Math.min(COLS - 5, term.x - 2));
+      if (g[ROWS - 3][lx] === ".") g[ROWS - 3][lx] = "L";
+    }
+
     return { grid: g, start: { x: 2 * TILE, y: (ROWS - 4) * TILE }, door: { col: doorCol, row: ROWS - 3 } };
   }
 
@@ -298,12 +333,17 @@
     s.x = built.start.x; s.y = built.start.y; s.vx = 0; s.vy = 0; s.onGround = false;
     state.camX = 0;
     state.bugs = [];
+    state.lasers = [];
+    state.money = 0;
+    state.eggs = 0;
     for (let r = 0; r < ROWS; r++)
       for (let c = 0; c < COLS; c++)
         if (state.grid[r][c] === "E") state.bugs.push({ x: c * TILE, y: r * TILE, dir: 1, min: c * TILE - 60, max: c * TILE + 60 });
+        else if (state.grid[r][c] === "L") state.lasers.push({ col: c, row: r, x: c * TILE, y: r * TILE, dir: 1, on: false, t: 0 });
     document.getElementById("hLevel").textContent = String(i + 1);
     document.getElementById("hProg").textContent = state.level.program;
-    document.getElementById("hDisks").textContent = "0";
+    document.getElementById("hMoney").textContent = "0";
+    document.getElementById("hEggs").textContent = "0";
   }
 
   // ---------- физика ----------
@@ -387,12 +427,38 @@
       }
     }
 
+    // баг, стреляющий лучом
+    const nowMs = performance.now();
+    for (const lz of state.lasers){
+      const phase = (nowMs + lz.col * 420) % 2400;
+      lz.on = phase < 800;
+      if (!lz.on) continue;
+      if (state.invuln && nowMs < state.invuln) continue;
+      if (overlap(p.x, p.y, p.w, p.h, lz.x + TILE, lz.y + 10, TILE * 2, 12)){
+        if (state.eggs > 0){
+          state.eggs--;
+          document.getElementById("hEggs").textContent = String(state.eggs);
+          state.invuln = nowMs + 1400;
+          flash("Яйцо-щит поглотило луч.");
+        } else {
+          p.x = state.levelData.start.x; p.y = state.levelData.start.y; p.vy = 0;
+          state.invuln = nowMs + 1200;
+          flash("Баг пробил лучом. Возврат к началу комнаты.");
+        }
+      }
+    }
+
     // сбор дисков
     const cc = Math.floor((p.x + p.w / 2) / TILE), rr = Math.floor((p.y + p.h / 2) / TILE);
     if (tileAt(cc, rr) === "o"){
       state.grid[rr][cc] = ".";
-      state.disks++;
-      document.getElementById("hDisks").textContent = String(state.disks);
+      state.money += 5;
+      document.getElementById("hMoney").textContent = String(state.money);
+    } else if (tileAt(cc, rr) === "g"){
+      state.grid[rr][cc] = ".";
+      state.eggs++;
+      document.getElementById("hEggs").textContent = String(state.eggs);
+      flash("Яйцо-щит: поглотит один удар бага.");
     }
 
     // открытие терминала
@@ -454,6 +520,18 @@
           g.fillStyle = "#1b2744"; g.fillRect(x + 6, y + 8, 20, 20);
           g.fillStyle = "#57e389"; g.fillRect(x + 8, y + 10, 16, 16);
           g.fillStyle = "#0e1730"; g.fillRect(x + 13, y + 13, 6, 10);
+        } else if (t === "g"){
+          g.fillStyle = "#f7f0e0"; g.fillRect(x + 10, y + 7, 12, 17);
+          g.fillStyle = "#e2d4b4"; g.fillRect(x + 12, y + 12, 8, 9);
+          g.fillStyle = "#8a6a3a"; g.fillRect(x + 8, y + 23, 16, 3);
+        } else if (t === "L"){
+          const pulse = (performance.now() % 2400) < 800;
+          g.fillStyle = "#5a1f2e"; g.fillRect(x + 6, y + 10, 20, 18);
+          g.fillStyle = "#8c2b3f"; g.fillRect(x + 8, y + 12, 16, 8);
+          g.fillStyle = pulse ? "#ff6b6b" : "#7a3a4a";
+          g.fillRect(x + 11, y + 14, 5, 4); g.fillRect(x + 18, y + 14, 5, 4);
+          g.fillStyle = "#ffcf6b"; g.fillRect(x + 24, y + 16, 6, 6);
+          g.fillStyle = "#3a1420"; g.fillRect(x + 4, y + 26, 24, 3);
         } else if (t === "T"){
           drawTerminal(x, y, state.solved);
         } else if (t === "S"){
@@ -470,6 +548,19 @@
     }
 
     for (const b of state.bugs) drawBug(b.x - cam, b.y);
+
+    for (const lz of state.lasers){
+      if (!lz.on) continue;
+      const bx = lz.x - cam + TILE, by = lz.y + 10;
+      const grd = g.createLinearGradient(bx, 0, bx + TILE * 2, 0);
+      grd.addColorStop(0, "rgba(255,107,107,.95)");
+      grd.addColorStop(1, "rgba(255,107,107,.2)");
+      g.fillStyle = grd;
+      g.fillRect(bx, by, TILE * 2, 12);
+      g.fillStyle = "#ffd0d0";
+      g.fillRect(bx, by + 4, TILE * 2, 4);
+    }
+
     drawPlayer();
 
     if (state.nearTerminal && !state.solved && state.running){
@@ -630,7 +721,6 @@
       return false;
     });
     if (ok){
-      state.solved = true;
       const typedRaw = tInput.value.trim();
       closeTerminal();
       setTimeout(function(){ showProgram(typedRaw); }, 140);
@@ -643,10 +733,38 @@
 
   function showProgram(typed){
     state.running = false;
-    document.getElementById("pTitle").textContent = state.level.program + " — запущено";
+    const l = state.level;
+    document.getElementById("pTitle").textContent = l.program + " — запущено";
     document.getElementById("pCmd").textContent = "> " + typed;
-    const note = state.level.hint;
-    document.getElementById("pNote").textContent = note.charAt(0).toUpperCase() + note.slice(1) + ". Дверь открыта.";
+    document.getElementById("pAsk").textContent = l.app ? l.app.prompt : "Готово.";
+    document.getElementById("pNote").textContent = "";
+    const next = document.getElementById("pNext");
+    next.disabled = true;
+    const box = document.getElementById("pOptions");
+    box.innerHTML = "";
+    if (l.app){
+      l.app.options.forEach(function(o, i){
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "opt";
+        b.textContent = o;
+        b.addEventListener("click", function(){
+          if (i !== l.app.correct){
+            b.classList.add("wrong");
+            document.getElementById("pNote").textContent = "Мимо. Подсказка: " + l.hint;
+            return;
+          }
+          b.classList.add("correct");
+          state.solved = true;
+          document.getElementById("pNote").textContent = "Сделано. " + l.hint + ". Дверь открыта.";
+          next.disabled = false;
+        });
+        box.appendChild(b);
+      });
+    } else {
+      state.solved = true;
+      next.disabled = false;
+    }
     document.getElementById("progScreen").classList.remove("hidden");
   }
 
