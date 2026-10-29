@@ -15,6 +15,25 @@
 
 В каждой комнате нужно добраться до терминала, ввести правильную команду и дойти до двери. Прогресс хранится в `localStorage`.
 
+## Запуск настоящих программ
+
+В окне программы есть кнопка «Запустить настоящую программу» — она открывает установленное приложение через ссылку `sysadminlab://`. Браузер при первом клике спросит разрешение.
+
+Работает это на каждой машине отдельно: обработчик ссылки прописывается в реестр один раз.
+
+```powershell
+# из папки с игрой, один раз
+powershell -ExecutionPolicy Bypass -File install-handler.ps1
+```
+
+Скрипт скачивает `launcher.ps1` в `%LOCALAPPDATA%\PixelAdmin` и регистрирует протокол в `HKCU\Software\Classes\sysadminlab` — без прав администратора. Отключить:
+
+```powershell
+Remove-Item HKCU:\Software\Classes\sysadminlab -Recurse
+```
+
+Поддерживаются: mRemoteNG, KeePassXC, VS Code, Joplin, draw.io, RustDesk, Aspia. Если программа не найдена, лаунчер откроет папку с дистрибутивами.
+
 ## Комнаты
 
 1. mRemoteNG — подключения (`ssh srv-billing`)

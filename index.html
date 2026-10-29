@@ -57,6 +57,9 @@
   .opt:hover{border-color:#3b82f6;background:#16233d}
   .opt.correct{border-color:#2f6b4a;background:#122a1e;color:#57e389}
   .opt.wrong{border-color:#7a2b3a;background:#2a1219;color:#ff8f8f}
+  a.opt.run{display:block;text-decoration:none;border-color:#8a6a3a;color:var(--amber);margin-top:4px}
+  a.opt.run:hover{background:#241d10;border-color:var(--amber)}
+  .runhint{font-size:11px;color:#6d7f9e;margin-top:6px;line-height:1.4}
   .levels{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:6px}  .lvl{font-size:12px;padding:8px 10px;border-radius:7px;border:1px solid #2a3d63;color:var(--dim);
     display:flex;justify-content:space-between;gap:8px}
   .lvl.done{border-color:#2f6b4a;color:var(--green)}
@@ -118,6 +121,7 @@
         <p class="cmd" id="pCmd">&gt; …</p>
         <p id="pAsk">…</p>
         <div class="opts" id="pOptions"></div>
+        <div id="pRunBox"></div>
         <p id="pNote">…</p>
         <div class="row"><button class="primary" id="pNext" disabled>Дверь открыта — идти дальше</button></div>
       </div>
@@ -202,6 +206,9 @@
     { prompt:"Какой пакет разбудит машину по сети?", options:["ping","wake-on-lan","tracert","netstat"], correct:1 }
   ];
   LEVELS.forEach(function(l, i){ l.app = APPS[i]; });
+
+  // ключи для запуска настоящих программ через sysadminlab://
+  const APPKEYS = ["mremoteng","keepassxc","vscode","drawio","joplin","rustdesk","aspia","","",""];
 
   // ---------- генерация уровней ----------
   function rng(seed){
@@ -766,6 +773,21 @@
       next.disabled = false;
     }
     document.getElementById("progScreen").classList.remove("hidden");
+
+    const runBox = document.getElementById("pRunBox");
+    runBox.innerHTML = "";
+    const runKey = APPKEYS[state.index];
+    if (runKey){
+      const a = document.createElement("a");
+      a.className = "opt run";
+      a.href = "sysadminlab://open?app=" + runKey;
+      a.textContent = "Запустить настоящую " + l.program + " на компьютере";
+      runBox.appendChild(a);
+      const t = document.createElement("div");
+      t.className = "runhint";
+      t.textContent = "Сработает на машине, где один раз запустили install-handler.ps1 из репозитория игры.";
+      runBox.appendChild(t);
+    }
   }
 
   document.getElementById("pNext").addEventListener("click", function(){
